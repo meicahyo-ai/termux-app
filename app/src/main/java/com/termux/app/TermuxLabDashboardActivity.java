@@ -89,9 +89,9 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         addCard(mainGrid, "◉", "Ubuntu", "Masuk PRoot distro",
             () -> runInTerminal("Ubuntu", "exec proot-distro login ubuntu"));
         addCard(mainGrid, "AI", "Codex", "AI coding CLI",
-            () -> runInTerminal("Codex", "command -v codex >/dev/null 2>&1 && exec codex || { echo 'Codex belum terpasang'; exec bash; }"));
+            () -> runInTerminal("Codex", "exec proot-distro login ubuntu -- bash -lc 'exec codex'"));
         addCard(mainGrid, "C", "Claude", "Claude Code CLI",
-            () -> runInTerminal("Claude", "command -v claude >/dev/null 2>&1 && exec claude || { echo 'Claude belum terpasang'; exec bash; }"));
+            () -> runInTerminal("Claude", "exec proot-distro login ubuntu -- bash -lc 'exec claude'"));
 
         TextView devLabel = section("DEV TOOLS");
         LinearLayout.LayoutParams devLp = new LinearLayout.LayoutParams(-1, -2);
