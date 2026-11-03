@@ -223,7 +223,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         TextView title = text("Termux Lab // Cockpit", 14, TEXT, true);
         title.setSingleLine(true);
         titles.addView(title);
-        TextView sub = text("engineering-lab • v0.7", 10, MUTED, false);
+        TextView sub = text("engineering-lab • v0.7.1", 10, MUTED, false);
         sub.setSingleLine(true);
         titles.addView(sub);
 
@@ -821,8 +821,8 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         contentHost.addView(settings, blockLp());
 
         LinearLayout about = panel();
-        about.addView(text("TERMUX LAB v0.7", 16, TEXT, true));
-        about.addView(text("Refined mobile engineering cockpit: health summary, Explorer search yang padat, Git worktree terstruktur, persistent TerminalView sessions, dan observability yang aman.", 12, MUTED, false));
+        about.addView(text("TERMUX LAB v0.7.1", 16, TEXT, true));
+        about.addView(text("Refined mobile engineering cockpit: health summary, Explorer search yang padat, Git worktree terstruktur, persistent TerminalView sessions, observability, dan session lifecycle cleanup yang aman.", 12, MUTED, false));
         about.addView(text("Package: " + getPackageName(), 11, MUTED, false));
         contentHost.addView(about, blockLp());
     }
@@ -1398,25 +1398,129 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
 
     private void killCurrentEmbeddedSession() {
         if (embeddedSession == null) {
-            toast("Tidak ada sesi embedded yang aktif");
+            selectFallbackEmbeddedSession(null, true);
             return;
         }
+
+        if (!embeddedSession.isRunning()) {
+            TerminalSession staleSession = embeddedSession;
+            String staleName = embeddedSessionName;
+            TermuxSession staleWrapper = embeddedSessionWrappers.remove(staleSession);
+            embeddedSessionsByName.remove(staleName);
+            if (staleWrapper != null) {
+                try { staleWrapper.finish(); } catch (Exception ignored) { }
+            }
+            embeddedSession = null;
+            detachEmbeddedTerminalView();
+            selectFallbackEmbeddedSession(staleName, true);
+            return;
+        }
+
+        TerminalSession killedSession = embeddedSession;
+        String killedName = embeddedSessionName;
+        TermuxSession killedWrapper = embeddedSessionWrappers.remove(killedSession);
+
+        // Putuskan TerminalView lebih dulu agar frame terakhir sesi yang mati
+        // tidak tertinggal di cockpit saat proses dihentikan.
+        detachEmbeddedTerminalView();
+        embeddedSessionsByName.remove(killedName);
+        embeddedSession = null;
+
         try {
-            if (embeddedSession.isRunning()) embeddedSession.finishIfRunning();
+            killedSession.finishIfRunning();
         } catch (Exception ignored) {
         }
-        embeddedSessionsByName.remove(embeddedSessionName);
-        embeddedSession = null;
+        if (killedWrapper != null) {
+            try { killedWrapper.finish(); } catch (Exception ignored) { }
+        }
+
+        selectFallbackEmbeddedSession(killedName, true);
+    }
+
+    private void detachEmbeddedTerminalView() {
+        if (embeddedTerminalView == null) return;
+        embeddedTerminalView.attachSession(null);
+        embeddedTerminalView.clearFocus();
+        embeddedTerminalView.invalidate();
+    }
+
+    private String findFallbackEmbeddedSessionName(@Nullable String excludedName) {
+        String fallback = null;
+        // LinkedHashMap mempertahankan urutan pembuatan. Dengan terus mengganti
+        // nilai fallback, kita memilih sesi hidup yang dibuat paling akhir.
+        for (Map.Entry<String, TermuxSession> entry : embeddedSessionsByName.entrySet()) {
+            if (excludedName != null && excludedName.equals(entry.getKey())) continue;
+            TermuxSession wrapper = entry.getValue();
+            TerminalSession session = wrapper == null ? null : wrapper.getTerminalSession();
+            if (session != null && session.isRunning()) fallback = entry.getKey();
+        }
+        return fallback;
+    }
+
+    private boolean attachExistingEmbeddedSession(String name) {
+        if (name == null) return false;
+        TermuxSession wrapper = embeddedSessionsByName.get(name);
+        TerminalSession session = wrapper == null ? null : wrapper.getTerminalSession();
+        if (session == null || !session.isRunning()) return false;
+
+        embeddedSessionName = name;
+        embeddedSession = session;
+        TerminalView view = ensureEmbeddedTerminalView();
+        view.attachSession(session);
+        view.requestFocus();
         updateEmbeddedHeader();
         updateSessionTabs();
+        return true;
+    }
+
+    private void selectFallbackEmbeddedSession(@Nullable String endedName, boolean announce) {
+        String fallbackName = findFallbackEmbeddedSessionName(endedName);
+        if (attachExistingEmbeddedSession(fallbackName)) {
+            if (announce && endedName != null) toast(endedName + " dihentikan • pindah ke " + fallbackName);
+            return;
+        }
+
+        // Tidak ada sesi lain yang hidup. Lepas TerminalView sepenuhnya dan
+        // kembali ke state idle yang bersih, bukan menampilkan transcript mati.
+        embeddedSession = null;
+        embeddedSessionName = "Shell";
+        embeddedCommand = "exec bash -l";
+        detachEmbeddedTerminalView();
+        updateEmbeddedHeader();
+        updateSessionTabs();
+        if (announce && endedName != null) toast(endedName + " dihentikan");
+    }
+
+    private void handleEmbeddedSessionFinished(@NonNull TerminalSession finishedSession) {
+        TermuxSession wrapper = embeddedSessionWrappers.remove(finishedSession);
+        String finishedName = null;
+        if (wrapper != null) {
+            for (Map.Entry<String, TermuxSession> entry : embeddedSessionsByName.entrySet()) {
+                if (entry.getValue() == wrapper) {
+                    finishedName = entry.getKey();
+                    break;
+                }
+            }
+            if (finishedName != null) embeddedSessionsByName.remove(finishedName);
+            try { wrapper.finish(); } catch (Exception ignored) { }
+        }
+
+        if (finishedSession == embeddedSession) {
+            detachEmbeddedTerminalView();
+            embeddedSession = null;
+            selectFallbackEmbeddedSession(finishedName, false);
+        } else {
+            updateEmbeddedHeader();
+            updateSessionTabs();
+        }
     }
 
     private void updateEmbeddedHeader() {
-        if (embeddedTitle != null) embeddedTitle.setText("● " + embeddedSessionName);
+        boolean running = embeddedSession != null && embeddedSession.isRunning();
+        if (embeddedTitle != null) embeddedTitle.setText((running ? "● " : "○ ") + embeddedSessionName);
         if (embeddedState != null) {
-            boolean running = embeddedSession != null && embeddedSession.isRunning();
             int live = countRunningEmbeddedSessions();
-            embeddedState.setText(running ? ("running • " + live + " live") : ("stopped • " + live + " live"));
+            embeddedState.setText(running ? ("running • " + live + " live") : ("idle • " + live + " live"));
             embeddedState.setTextColor(running ? GREEN : MUTED);
         }
     }
@@ -1574,13 +1678,9 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
 
         @Override
         public void onSessionFinished(@NonNull TerminalSession finishedSession) {
-            TermuxSession wrapper = embeddedSessionWrappers.remove(finishedSession);
-            if (wrapper != null) {
-                embeddedSessionsByName.entrySet().removeIf(entry -> entry.getValue() == wrapper);
-                try { wrapper.finish(); } catch (Exception ignored) { }
-            }
-            if (finishedSession == embeddedSession) runOnUiThread(() -> { updateEmbeddedHeader(); updateSessionTabs(); });
-            else runOnUiThread(TermuxLabDashboardActivity.this::updateSessionTabs);
+            // Session callbacks tidak diasumsikan datang dari UI thread.
+            // Semua map + TerminalView lifecycle ditangani serial di main thread.
+            runOnUiThread(() -> handleEmbeddedSessionFinished(finishedSession));
         }
 
         @Override
