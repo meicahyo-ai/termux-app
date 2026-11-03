@@ -98,6 +98,9 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
     private TextView gitStateValue;
     private TextView gitCommitValue;
     private LinearLayout gitFilesHost;
+    private TextView homeUbuntuValue;
+    private TextView homeSessionsValue;
+    private TextView homeCommitValue;
     private long lastCpuTotal = -1L;
     private long lastCpuIdle = -1L;
 
@@ -193,7 +196,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         View dividerBottom = new View(this);
         dividerBottom.setBackgroundColor(BORDER_SOFT);
         root.addView(dividerBottom, new LinearLayout.LayoutParams(-1, dp(1)));
-        root.addView(buildNavBar(), new LinearLayout.LayoutParams(-1, dp(56)));
+        root.addView(buildNavBar(), new LinearLayout.LayoutParams(-1, dp(52)));
         root.requestApplyInsets();
         return root;
     }
@@ -220,7 +223,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         TextView title = text("Termux Lab // Cockpit", 14, TEXT, true);
         title.setSingleLine(true);
         titles.addView(title);
-        TextView sub = text("engineering-lab • v0.6", 10, MUTED, false);
+        TextView sub = text("engineering-lab • v0.7", 10, MUTED, false);
         sub.setSingleLine(true);
         titles.addView(sub);
 
@@ -252,7 +255,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         TextView button = text(label, 9, MUTED, true);
         button.setGravity(Gravity.CENTER);
         button.setLines(2);
-        button.setPadding(dp(2), dp(4), dp(2), dp(4));
+        button.setPadding(dp(2), dp(3), dp(2), dp(3));
         button.setBackground(round(PANEL, BORDER_SOFT, 1, 7));
         button.setOnClickListener(v -> showSection(key));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1f);
@@ -278,6 +281,9 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         gitStateValue = null;
         gitCommitValue = null;
         gitFilesHost = null;
+        homeUbuntuValue = null;
+        homeSessionsValue = null;
+        homeCommitValue = null;
         contentHost.removeAllViews();
 
         switch (section) {
@@ -308,40 +314,72 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
     }
 
     private void buildHomeSection() {
-        contentHost.addView(sectionTitle("WORKSPACE", "engineering-lab • Ubuntu PRoot • tap logo untuk kembali ke Home"));
+        contentHost.addView(sectionTitle("WORKSPACE", "engineering-lab • Ubuntu PRoot • tap header untuk Home"));
 
         LinearLayout hero = panel();
+
         LinearLayout titleRow = new LinearLayout(this);
         titleRow.setOrientation(LinearLayout.HORIZONTAL);
         titleRow.setGravity(Gravity.CENTER_VERTICAL);
+
         LinearLayout labels = new LinearLayout(this);
         labels.setOrientation(LinearLayout.VERTICAL);
         labels.addView(text("engineering-lab", 18, TEXT, true));
-        labels.addView(text("/root/projects/engineering-lab", 10, MUTED, false));
+        labels.addView(text(UBUNTU_REPO, 10, MUTED, false));
         titleRow.addView(labels, new LinearLayout.LayoutParams(0, -2, 1f));
         titleRow.addView(chip("● ACTIVE", GREEN));
         hero.addView(titleRow);
 
-        LinearLayout metrics = new LinearLayout(this);
-        metrics.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams metricsLp = new LinearLayout.LayoutParams(-1, -2);
-        metricsLp.setMargins(0, dp(10), 0, dp(4));
-        hero.addView(metrics, metricsLp);
+        LinearLayout healthRow = new LinearLayout(this);
+        healthRow.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams healthLp = new LinearLayout.LayoutParams(-1, -2);
+        healthLp.setMargins(0, dp(10), 0, dp(5));
+        hero.addView(healthRow, healthLp);
 
         LinearLayout gitBox = compactMetric("GIT");
         gitStateValue = text("…", 12, GREEN, true);
         gitBox.addView(gitStateValue);
-        metrics.addView(gitBox, weightedMetricLp());
+        healthRow.addView(gitBox, weightedMetricLp());
+
+        LinearLayout ubuntuBox = compactMetric("UBUNTU");
+        homeUbuntuValue = text("checking", 12, AMBER, true);
+        ubuntuBox.addView(homeUbuntuValue);
+        healthRow.addView(ubuntuBox, weightedMetricLp());
+
+        LinearLayout sessionBox = compactMetric("SESSIONS");
+        homeSessionsValue = text(countRunningEmbeddedSessions() + " live", 12, BLUE, true);
+        sessionBox.addView(homeSessionsValue);
+        healthRow.addView(sessionBox, weightedMetricLp());
+
+        LinearLayout resourcesRow = new LinearLayout(this);
+        resourcesRow.setOrientation(LinearLayout.HORIZONTAL);
 
         LinearLayout ramBox = compactMetric("RAM");
         ramValue = text("…", 12, GREEN, true);
         ramBox.addView(ramValue);
-        metrics.addView(ramBox, weightedMetricLp());
+        resourcesRow.addView(ramBox, weightedMetricLp());
 
-        LinearLayout storageBox = compactMetric("FREE");
+        LinearLayout storageBox = compactMetric("STORAGE");
         storageValue = text("…", 12, AMBER, true);
+        storageValue.setMaxLines(2);
         storageBox.addView(storageValue);
-        metrics.addView(storageBox, weightedMetricLp());
+        resourcesRow.addView(storageBox, weightedMetricLp());
+
+        hero.addView(resourcesRow);
+
+        LinearLayout commit = new LinearLayout(this);
+        commit.setOrientation(LinearLayout.VERTICAL);
+        commit.setPadding(dp(9), dp(8), dp(9), dp(8));
+        commit.setBackground(round(Color.rgb(18, 16, 13), BORDER_SOFT, 1, 5));
+        LinearLayout.LayoutParams commitLp = new LinearLayout.LayoutParams(-1, -2);
+        commitLp.setMargins(0, dp(7), 0, dp(3));
+        commit.setLayoutParams(commitLp);
+        commit.addView(text("LAST COMMIT", 9, MUTED, true));
+        homeCommitValue = text("loading…", 11, TEXT, true);
+        homeCommitValue.setMaxLines(2);
+        homeCommitValue.setEllipsize(TextUtils.TruncateAt.END);
+        commit.addView(homeCommitValue);
+        hero.addView(commit);
 
         hero.addView(actionBar(
             new Action("TERMINAL", () -> launchEmbedded("Shell", "cd ~/termux-lab-real 2>/dev/null || cd ~; exec bash -l")),
@@ -352,7 +390,13 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         contentHost.addView(hero, blockLp());
 
         LinearLayout sessions = panel();
-        sessions.addView(text("LIVE SESSIONS", 11, AMBER, true));
+        LinearLayout sessionsHeader = new LinearLayout(this);
+        sessionsHeader.setOrientation(LinearLayout.HORIZONTAL);
+        sessionsHeader.setGravity(Gravity.CENTER_VERTICAL);
+        sessionsHeader.addView(text("LIVE SESSIONS", 11, AMBER, true), new LinearLayout.LayoutParams(0, -2, 1f));
+        sessionsHeader.addView(chip(countRunningEmbeddedSessions() + " LIVE", countRunningEmbeddedSessions() > 0 ? GREEN : MUTED));
+        sessions.addView(sessionsHeader);
+
         if (embeddedSessionsByName.isEmpty()) {
             TextView empty = text("Belum ada sesi embedded. Buka Shell, Codex, Claude, atau Ubuntu.", 11, MUTED, false);
             empty.setPadding(0, dp(8), 0, dp(4));
@@ -376,16 +420,20 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         LinearLayout quick = panel();
         quick.addView(text("QUICK STATUS", 11, AMBER, true));
         TextView status = terminalBox("Memuat status workspace…");
-        status.setMinHeight(dp(100));
+        status.setMinHeight(dp(96));
         quick.addView(status);
         contentHost.addView(quick, blockLp());
+
         captureCommand("workspace", ubuntuCapture(
             "cd " + shellQuote(UBUNTU_REPO) + " 2>/dev/null || exit 2; " +
             "printf 'Branch : '; git branch --show-current; " +
             "printf 'State  : '; n=$(git status --porcelain | wc -l | tr -d ' '); [ \"$n\" = 0 ] && echo clean || echo \"$n changed\"; " +
             "printf 'Codex  : '; codex --version 2>/dev/null | head -1; " +
             "printf 'Claude : '; claude --version 2>/dev/null | head -1"), status);
+
         refreshHomeGitState();
+        refreshHomeUbuntu();
+        refreshHomeCommit();
     }
 
     private void buildExplorerSection() {
@@ -404,23 +452,47 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         }), new Action("TERMINAL HERE", () -> launchEmbedded("Shell", "cd " + shellQuote(currentDir.getAbsolutePath()) + " && exec bash -l")),
             new Action("UBUNTU PROJECT", () -> launchEmbedded("Ubuntu", ubuntuInteractive("cd " + shellQuote(UBUNTU_REPO) + " && exec bash")))));
 
+        LinearLayout searchRow = new LinearLayout(this);
+        searchRow.setOrientation(LinearLayout.HORIZONTAL);
+        searchRow.setGravity(Gravity.CENTER_VERTICAL);
+
         EditText search = new EditText(this);
         search.setSingleLine(true);
         search.setTextColor(TEXT);
         search.setHintTextColor(MUTED);
-        search.setHint("Cari file/folder…");
+        search.setHint("Cari di folder ini…");
         search.setTextSize(12);
-        search.setPadding(dp(11), dp(8), dp(11), dp(8));
+        search.setPadding(dp(11), dp(7), dp(11), dp(7));
         search.setBackground(round(PANEL_2, BORDER_SOFT, 1, 5));
-        contentHost.addView(search, blockLp());
+        searchRow.addView(search, new LinearLayout.LayoutParams(0, -2, 1f));
+
+        TextView clear = text("CLEAR", 9, MUTED, true);
+        clear.setGravity(Gravity.CENTER);
+        clear.setPadding(dp(10), dp(9), dp(10), dp(9));
+        clear.setBackground(round(PANEL_2, BORDER_SOFT, 1, 5));
+        LinearLayout.LayoutParams clearLp = new LinearLayout.LayoutParams(-2, -2);
+        clearLp.setMargins(dp(6), 0, 0, 0);
+        searchRow.addView(clear, clearLp);
+        contentHost.addView(searchRow, blockLp());
+
+        TextView resultCount = text("", 9, MUTED, false);
+        resultCount.setPadding(dp(4), 0, dp(4), dp(5));
+        contentHost.addView(resultCount);
 
         LinearLayout filesPanel = panel();
+        filesPanel.setPadding(dp(8), dp(8), dp(8), dp(8));
         contentHost.addView(filesPanel, blockLp());
-        populateExplorerFiles(filesPanel, "");
+        populateExplorerFiles(filesPanel, resultCount, "");
+
+        clear.setOnClickListener(v -> {
+            search.setText("");
+            search.requestFocus();
+        });
+
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
             @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
-                populateExplorerFiles(filesPanel, value == null ? "" : value.toString());
+                populateExplorerFiles(filesPanel, resultCount, value == null ? "" : value.toString());
             }
             @Override public void afterTextChanged(Editable s) { }
         });
@@ -440,27 +512,35 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         contentHost.addView(workspace, blockLp());
     }
 
-    private void populateExplorerFiles(LinearLayout filesPanel, String query) {
+    private void populateExplorerFiles(LinearLayout filesPanel, TextView resultCount, String query) {
         filesPanel.removeAllViews();
         File[] files = currentDir.listFiles();
         if (files == null) {
+            resultCount.setText("folder tidak dapat dibaca");
             filesPanel.addView(text("Tidak dapat membaca direktori ini.", 12, RED, false));
             return;
         }
+
         Arrays.sort(files, (a, b) -> {
             if (a.isDirectory() != b.isDirectory()) return a.isDirectory() ? -1 : 1;
             return a.getName().compareToIgnoreCase(b.getName());
         });
+
         String needle = query == null ? "" : query.trim().toLowerCase(Locale.US);
         int shown = 0;
         int matched = 0;
+
         for (File file : files) {
             if (!needle.isEmpty() && !file.getName().toLowerCase(Locale.US).contains(needle)) continue;
             matched++;
-            if (shown >= 60) continue;
+            if (shown >= 80) continue;
             filesPanel.addView(fileRow(file));
             shown++;
         }
+
+        resultCount.setText(matched + (matched == 1 ? " item" : " items") +
+            (needle.isEmpty() ? "" : " • filter: " + query.trim()));
+
         if (matched == 0) {
             TextView empty = text("Tidak ada item yang cocok.", 11, MUTED, false);
             empty.setPadding(dp(8), dp(8), dp(8), dp(8));
@@ -503,7 +583,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
             }
         });
 
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(42));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(38));
         lp.setMargins(0, 0, 0, dp(3));
         row.setLayoutParams(lp);
         return row;
@@ -513,21 +593,22 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         contentHost.addView(sectionTitle("GIT / REVIEW", "Ubuntu • " + UBUNTU_REPO));
 
         LinearLayout header = panel();
+
         LinearLayout top = new LinearLayout(this);
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
 
         LinearLayout labels = new LinearLayout(this);
         labels.setOrientation(LinearLayout.VERTICAL);
-        top.addView(labels, new LinearLayout.LayoutParams(0, -2, 1f));
         labels.addView(text("engineering-lab", 17, TEXT, true));
         labels.addView(text("workspace repository", 10, MUTED, false));
+        top.addView(labels, new LinearLayout.LayoutParams(0, -2, 1f));
         header.addView(top);
 
         LinearLayout summary = new LinearLayout(this);
         summary.setOrientation(LinearLayout.HORIZONTAL);
         LinearLayout.LayoutParams sumLp = new LinearLayout.LayoutParams(-1, -2);
-        sumLp.setMargins(0, dp(10), 0, dp(4));
+        sumLp.setMargins(0, dp(10), 0, dp(5));
         header.addView(summary, sumLp);
 
         LinearLayout branchBox = compactMetric("BRANCH");
@@ -540,12 +621,16 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         stateBox.addView(gitStateValue);
         summary.addView(stateBox, weightedMetricLp());
 
-        LinearLayout commitBox = compactMetric("LAST");
+        LinearLayout commitBox = new LinearLayout(this);
+        commitBox.setOrientation(LinearLayout.VERTICAL);
+        commitBox.setPadding(dp(9), dp(8), dp(9), dp(8));
+        commitBox.setBackground(round(Color.rgb(18, 16, 13), BORDER_SOFT, 1, 5));
+        commitBox.addView(text("LAST COMMIT", 9, MUTED, true));
         gitCommitValue = text("…", 11, AMBER, true);
         gitCommitValue.setMaxLines(2);
         gitCommitValue.setEllipsize(TextUtils.TruncateAt.END);
         commitBox.addView(gitCommitValue);
-        summary.addView(commitBox, weightedMetricLp());
+        header.addView(commitBox, blockLp());
 
         header.addView(actionBar(
             new Action("PERFORM REVIEW", () -> launchEmbedded("Codex Review", ubuntuRepoInteractive("codex review --uncommitted"))),
@@ -554,7 +639,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         contentHost.addView(header, blockLp());
 
         TextView output = terminalBox("Memuat status repository…");
-        output.setMinHeight(dp(150));
+        output.setMinHeight(dp(135));
         contentHost.addView(output, blockLp());
 
         contentHost.addView(actionBar(
@@ -571,7 +656,12 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         ));
 
         LinearLayout changes = panel();
-        changes.addView(text("WORKTREE", 11, AMBER, true));
+        LinearLayout wtHeader = new LinearLayout(this);
+        wtHeader.setOrientation(LinearLayout.HORIZONTAL);
+        wtHeader.setGravity(Gravity.CENTER_VERTICAL);
+        wtHeader.addView(text("WORKTREE", 11, AMBER, true), new LinearLayout.LayoutParams(0, -2, 1f));
+        wtHeader.addView(chip("tap file → nvim", MUTED));
+        changes.addView(wtHeader);
         gitFilesHost = new LinearLayout(this);
         gitFilesHost.setOrientation(LinearLayout.VERTICAL);
         changes.addView(gitFilesHost);
@@ -629,7 +719,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
 
         LinearLayout metricRow2 = new LinearLayout(this);
         metricRow2.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout cpu = metric("CPU");
+        LinearLayout cpu = metric("CPU / CORES");
         loadValue = text(Runtime.getRuntime().availableProcessors() + " cores", 16, BLUE, true);
         cpu.addView(loadValue);
         metricRow2.addView(cpu, weightedMetricLp());
@@ -664,7 +754,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
     }
 
     private void buildTerminalSection() {
-        contentHost.addView(sectionTitle("TERMINAL / WORKSPACE", "live TerminalView • no launcher hop"));
+        contentHost.addView(sectionTitle("TERMINAL / WORKSPACE", "native TerminalView • persistent session tabs"));
 
         LinearLayout sessionBar = new LinearLayout(this);
         sessionBar.setOrientation(LinearLayout.HORIZONTAL);
@@ -692,8 +782,10 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
             new Action("ESC", () -> sendEmbedded("\u001b")),
             new Action("CTRL-C", () -> sendEmbedded("\u0003")),
             new Action("TAB", () -> sendEmbedded("\t")),
+            new Action("←", () -> sendEmbedded("\u001b[D")),
             new Action("↑", () -> sendEmbedded("\u001b[A")),
             new Action("↓", () -> sendEmbedded("\u001b[B")),
+            new Action("→", () -> sendEmbedded("\u001b[C")),
             new Action("CLEAR", () -> sendEmbedded("clear\r"))
         ));
 
@@ -729,8 +821,8 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         contentHost.addView(settings, blockLp());
 
         LinearLayout about = panel();
-        about.addView(text("TERMUX LAB v0.6", 16, TEXT, true));
-        about.addView(text("Mobile engineering cockpit dengan Home dashboard, pencarian Explorer, worktree Git terstruktur, live metrics, dan TerminalView asli Termux dengan sesi persisten.", 12, MUTED, false));
+        about.addView(text("TERMUX LAB v0.7", 16, TEXT, true));
+        about.addView(text("Refined mobile engineering cockpit: health summary, Explorer search yang padat, Git worktree terstruktur, persistent TerminalView sessions, dan observability yang aman.", 12, MUTED, false));
         about.addView(text("Package: " + getPackageName(), 11, MUTED, false));
         contentHost.addView(about, blockLp());
     }
@@ -739,7 +831,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(4), dp(4), dp(4), dp(8));
-        box.addView(text(title, 19, TEXT, true));
+        box.addView(text(title, 18, TEXT, true));
         box.addView(text(subtitle, 11, MUTED, false));
         return box;
     }
@@ -762,7 +854,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         for (Action action : actions) {
             TextView button = text(action.label, 11, TEXT, true);
             button.setGravity(Gravity.CENTER);
-            button.setPadding(dp(11), dp(9), dp(11), dp(9));
+            button.setPadding(dp(10), dp(8), dp(10), dp(8));
             button.setBackground(round(PANEL_2, BORDER, 1, 5));
             button.setOnClickListener(v -> action.run.run());
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
@@ -897,8 +989,15 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
     private void refreshStats() {
         if (headerStatus != null) {
             boolean ready = new File(TermuxConstants.TERMUX_PREFIX_DIR_PATH + "/bin/bash").exists();
-            headerStatus.setText(ready ? "● READY" : "● BOOTSTRAP");
+            int live = countRunningEmbeddedSessions();
+            headerStatus.setText(ready ? ("● READY" + (live > 0 ? " • " + live : "")) : "● BOOTSTRAP");
             headerStatus.setTextColor(ready ? GREEN : RED);
+        }
+
+        if (homeSessionsValue != null) {
+            int live = countRunningEmbeddedSessions();
+            homeSessionsValue.setText(live + (live == 1 ? " live" : " live"));
+            homeSessionsValue.setTextColor(live > 0 ? GREEN : MUTED);
         }
 
         if (ramValue != null) {
@@ -914,7 +1013,11 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
             long total = stat.getTotalBytes();
             long free = stat.getAvailableBytes();
             int percent = total > 0 ? (int) (((total - free) * 100L) / total) : 0;
-            storageValue.setText(percent + "% • " + human(free) + " free");
+            if ("Home".equals(activeSection)) {
+                storageValue.setText(human(free) + " free\n" + percent + "% used");
+            } else {
+                storageValue.setText(percent + "% • " + human(free) + " free");
+            }
             storageValue.setTextColor(percent >= 90 ? RED : AMBER);
         }
 
@@ -955,6 +1058,44 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         }
     }
 
+    private int countRunningEmbeddedSessions() {
+        int count = 0;
+        for (TermuxSession wrapper : embeddedSessionsByName.values()) {
+            TerminalSession session = wrapper == null ? null : wrapper.getTerminalSession();
+            if (session != null && session.isRunning()) count++;
+        }
+        return count;
+    }
+
+    private void refreshHomeUbuntu() {
+        if (homeUbuntuValue == null) return;
+        new Thread(() -> {
+            String out = runCapture(
+                "proot-distro login ubuntu -- bash -lc " + shellQuote("printf ready"),
+                2, 64
+            ).trim();
+            boolean ready = out.contains("ready");
+            runOnUiThread(() -> {
+                if (homeUbuntuValue == null) return;
+                homeUbuntuValue.setText(ready ? "ready" : "offline");
+                homeUbuntuValue.setTextColor(ready ? GREEN : RED);
+            });
+        }).start();
+    }
+
+    private void refreshHomeCommit() {
+        if (homeCommitValue == null) return;
+        new Thread(() -> {
+            String out = runCapture(
+                ubuntuCapture("cd " + shellQuote(UBUNTU_REPO) + " && git log -1 --format='%h • %s'"),
+                4, 512
+            ).trim();
+            runOnUiThread(() -> {
+                if (homeCommitValue != null) homeCommitValue.setText(out.isEmpty() ? "n/a" : out);
+            });
+        }).start();
+    }
+
     private void refreshHomeGitState() {
         if (gitStateValue == null) return;
         new Thread(() -> {
@@ -987,13 +1128,30 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
                 int shown = 0;
                 for (String line : lines) {
                     if (line.trim().isEmpty() || shown >= 30) continue;
-                    String status = line.length() >= 2 ? line.substring(0, 2).trim() : "?";
+                    String rawStatus = line.length() >= 2 ? line.substring(0, 2) : "??";
+                    String status = rawStatus.trim();
                     String path = line.length() > 3 ? line.substring(3) : line.trim();
                     LinearLayout row = new LinearLayout(this);
                     row.setOrientation(LinearLayout.HORIZONTAL);
                     row.setGravity(Gravity.CENTER_VERTICAL);
-                    row.setPadding(0, dp(7), 0, dp(7));
-                    TextView badge = chip(status.isEmpty() ? "M" : status, status.contains("?") ? BLUE : AMBER);
+                    row.setPadding(0, dp(6), 0, dp(6));
+
+                    String badgeText;
+                    int badgeColor;
+                    if ("??".equals(rawStatus)) {
+                        badgeText = "NEW";
+                        badgeColor = BLUE;
+                    } else if (rawStatus.length() > 0 && rawStatus.charAt(0) != ' ' && rawStatus.charAt(0) != '?') {
+                        badgeText = "STAGED";
+                        badgeColor = GREEN;
+                    } else if (rawStatus.length() > 1 && rawStatus.charAt(1) != ' ') {
+                        badgeText = "MOD";
+                        badgeColor = AMBER;
+                    } else {
+                        badgeText = status.isEmpty() ? "MOD" : status;
+                        badgeColor = AMBER;
+                    }
+                    TextView badge = chip(badgeText, badgeColor);
                     row.addView(badge);
                     TextView file = text(path, 11, TEXT, false);
                     file.setSingleLine(true);
@@ -1247,6 +1405,8 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
             if (embeddedSession.isRunning()) embeddedSession.finishIfRunning();
         } catch (Exception ignored) {
         }
+        embeddedSessionsByName.remove(embeddedSessionName);
+        embeddedSession = null;
         updateEmbeddedHeader();
         updateSessionTabs();
     }
@@ -1255,7 +1415,8 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         if (embeddedTitle != null) embeddedTitle.setText("● " + embeddedSessionName);
         if (embeddedState != null) {
             boolean running = embeddedSession != null && embeddedSession.isRunning();
-            embeddedState.setText(running ? "running" : "stopped");
+            int live = countRunningEmbeddedSessions();
+            embeddedState.setText(running ? ("running • " + live + " live") : ("stopped • " + live + " live"));
             embeddedState.setTextColor(running ? GREEN : MUTED);
         }
     }
