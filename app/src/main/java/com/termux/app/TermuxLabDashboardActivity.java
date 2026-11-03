@@ -223,7 +223,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         TextView title = text("Termux Lab // Cockpit", 14, TEXT, true);
         title.setSingleLine(true);
         titles.addView(title);
-        TextView sub = text("engineering-lab • v0.7.1", 10, MUTED, false);
+        TextView sub = text("engineering-lab • v0.7.2", 10, MUTED, false);
         sub.setSingleLine(true);
         titles.addView(sub);
 
@@ -821,8 +821,8 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         contentHost.addView(settings, blockLp());
 
         LinearLayout about = panel();
-        about.addView(text("TERMUX LAB v0.7.1", 16, TEXT, true));
-        about.addView(text("Refined mobile engineering cockpit: health summary, Explorer search yang padat, Git worktree terstruktur, persistent TerminalView sessions, observability, dan session lifecycle cleanup yang aman.", 12, MUTED, false));
+        about.addView(text("TERMUX LAB v0.7.2", 16, TEXT, true));
+        about.addView(text("Refined mobile engineering cockpit: health summary, Explorer search yang padat, Git worktree terstruktur, persistent TerminalView sessions, observability, lifecycle cleanup, dan sinkronisasi live session counter secara langsung.", 12, MUTED, false));
         about.addView(text("Package: " + getPackageName(), 11, MUTED, false));
         contentHost.addView(about, blockLp());
     }
@@ -986,19 +986,23 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         return g;
     }
 
-    private void refreshStats() {
+    private void refreshSessionIndicators() {
+        boolean ready = new File(TermuxConstants.TERMUX_PREFIX_DIR_PATH + "/bin/bash").exists();
+        int live = countRunningEmbeddedSessions();
+
         if (headerStatus != null) {
-            boolean ready = new File(TermuxConstants.TERMUX_PREFIX_DIR_PATH + "/bin/bash").exists();
-            int live = countRunningEmbeddedSessions();
             headerStatus.setText(ready ? ("● READY" + (live > 0 ? " • " + live : "")) : "● BOOTSTRAP");
             headerStatus.setTextColor(ready ? GREEN : RED);
         }
 
         if (homeSessionsValue != null) {
-            int live = countRunningEmbeddedSessions();
-            homeSessionsValue.setText(live + (live == 1 ? " live" : " live"));
+            homeSessionsValue.setText(live + " live");
             homeSessionsValue.setTextColor(live > 0 ? GREEN : MUTED);
         }
+    }
+
+    private void refreshStats() {
+        refreshSessionIndicators();
 
         if (ramValue != null) {
             ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
@@ -1208,6 +1212,10 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
             tab.setTextColor(active ? TEXT : (running ? GREEN : MUTED));
             tab.setBackground(round(active ? AMBER_DARK : PANEL_2, active ? AMBER : BORDER_SOFT, 1, 12));
         }
+
+        // Session tabs, header READY badge, dan Home session count harus
+        // membaca snapshot session map yang sama pada frame UI yang sama.
+        refreshSessionIndicators();
     }
 
     private String readLoadAverage() {
