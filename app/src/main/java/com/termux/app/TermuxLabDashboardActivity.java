@@ -86,6 +86,9 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
     private final Handler refreshHandler = new Handler(Looper.getMainLooper());
 
     private LinearLayout contentHost;
+    private ScrollView mainScroll;
+    private LinearLayout aiComposerHost;
+    private TermuxLabAiChatPanel aiChatPanel;
     private TextView headerStatus;
     private TextView ramValue;
     private TextView storageValue;
@@ -155,6 +158,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         refreshHandler.removeCallbacks(refreshTick);
+        if (aiChatPanel != null) aiChatPanel.dispose();
         for (TerminalSession session : embeddedSessionWrappers.keySet().toArray(new TerminalSession[0])) {
             try {
                 if (session != null && session.isRunning()) session.finishIfRunning();
@@ -183,6 +187,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         root.addView(dividerTop, new LinearLayout.LayoutParams(-1, dp(1)));
 
         ScrollView scroll = new ScrollView(this);
+        mainScroll = scroll;
         scroll.setFillViewport(true);
         scroll.setBackgroundColor(BG);
 
@@ -192,6 +197,10 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         scroll.addView(contentHost, new ScrollView.LayoutParams(-1, -2));
 
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        aiComposerHost = new LinearLayout(this);
+        aiComposerHost.setOrientation(LinearLayout.VERTICAL);
+        root.addView(aiComposerHost, new LinearLayout.LayoutParams(-1, -2));
 
         View dividerBottom = new View(this);
         dividerBottom.setBackgroundColor(BORDER_SOFT);
@@ -223,7 +232,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         TextView title = text("Termux Lab // Cockpit", 14, TEXT, true);
         title.setSingleLine(true);
         titles.addView(title);
-        TextView sub = text("engineering-lab • v0.7.2", 10, MUTED, false);
+        TextView sub = text("engineering-lab • v0.8.0", 10, MUTED, false);
         sub.setSingleLine(true);
         titles.addView(sub);
 
@@ -285,6 +294,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         homeSessionsValue = null;
         homeCommitValue = null;
         contentHost.removeAllViews();
+        if (aiComposerHost != null) aiComposerHost.removeAllViews();
 
         switch (section) {
             case "Home":
@@ -673,32 +683,16 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
     }
 
     private void buildAiSection() {
-        contentHost.addView(sectionTitle("AI CONTROL CENTER", "Ubuntu agents • project-aware"));
-
-        LinearLayout ai = panel();
-        ai.addView(toolRow("OpenAI Codex", "coding agent / review", GREEN,
-            () -> launchEmbedded("Codex", ubuntuRepoInteractive("exec codex"))));
-        ai.addView(toolRow("Claude Code", "coding agent / workspace", AMBER,
-            () -> launchEmbedded("Claude", ubuntuRepoInteractive("exec claude"))));
-        ai.addView(toolRow("Codex Review", "review perubahan Git saat ini", BLUE,
-            () -> launchEmbedded("Codex Review", ubuntuRepoInteractive("codex review --uncommitted; exec bash"))));
-        ai.addView(toolRow("OpenCodeReview", "cek instalasi OCR CLI", MUTED,
-            () -> launchEmbedded("OpenCodeReview", ubuntuInteractive("if command -v ocr >/dev/null 2>&1; then ocr --help; else echo 'ocr tidak ditemukan'; fi; exec bash"))));
-        contentHost.addView(ai, blockLp());
-
-        TextView status = terminalBox("Mengecek AI CLI…");
-        contentHost.addView(status, blockLp());
-        contentHost.addView(actionBar(
-            new Action("REFRESH STATUS", () -> captureCommand("AI status", ubuntuCapture(
-                "printf 'Codex : '; codex --version 2>&1 || true; " +
-                "printf 'Claude: '; claude --version 2>&1 || true; " +
-                "printf 'OCR   : '; if command -v ocr >/dev/null 2>&1; then ocr --help 2>/dev/null | head -1; else echo 'not found'; fi"), status)),
-            new Action("UBUNTU SHELL", () -> launchEmbedded("Ubuntu", ubuntuInteractive("exec bash")))
-        ));
-        captureCommand("AI status", ubuntuCapture(
-            "printf 'Codex : '; codex --version 2>&1 || true; " +
-            "printf 'Claude: '; claude --version 2>&1 || true; " +
-            "printf 'OCR   : '; if command -v ocr >/dev/null 2>&1; then command -v ocr; else echo 'not found'; fi"), status);
+        if (aiChatPanel == null) {
+            aiChatPanel = new TermuxLabAiChatPanel(this,
+                () -> {
+                    if (mainScroll != null && "AI".equals(activeSection)) {
+                        mainScroll.post(() -> mainScroll.fullScroll(View.FOCUS_DOWN));
+                    }
+                });
+        }
+        contentHost.addView(aiChatPanel.contentView(), new LinearLayout.LayoutParams(-1, -2));
+        aiComposerHost.addView(aiChatPanel.composerView(), new LinearLayout.LayoutParams(-1, -2));
     }
 
     private void buildOpsSection() {
@@ -821,8 +815,8 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         contentHost.addView(settings, blockLp());
 
         LinearLayout about = panel();
-        about.addView(text("TERMUX LAB v0.7.2", 16, TEXT, true));
-        about.addView(text("Refined mobile engineering cockpit: health summary, Explorer search yang padat, Git worktree terstruktur, persistent TerminalView sessions, observability, lifecycle cleanup, dan sinkronisasi live session counter secara langsung.", 12, MUTED, false));
+        about.addView(text("TERMUX LAB v0.8.0", 16, TEXT, true));
+        about.addView(text("Mobile AI engineering cockpit: chat dan command planner dengan konfirmasi per-aksi, model CLI Codex/Claude, persistent sessions, Explorer, Git, dan Ops.", 12, MUTED, false));
         about.addView(text("Package: " + getPackageName(), 11, MUTED, false));
         contentHost.addView(about, blockLp());
     }
