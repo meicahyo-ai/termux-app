@@ -34,8 +34,8 @@ jobs:
         shell: bash
         env:
           TERMUX_PACKAGE_VARIANT: apt-android-7
-          TERMUX_APP_VERSION_NAME: 0.118.0-lab.8.1
-          TERMUX_APK_VERSION_TAG: v0.118.0-lab.8.1-apt-android-7-debug
+          TERMUX_APP_VERSION_NAME: 0.118.0-lab.8.2
+          TERMUX_APK_VERSION_TAG: v0.118.0-lab.8.2-apt-android-7-debug
         run: |
           set -euxo pipefail
           chmod +x gradlew
@@ -46,7 +46,7 @@ jobs:
       - name: Upload arm64 APK
         uses: actions/upload-artifact@v6
         with:
-          name: Termux-Lab-Real-v0.8.1-arm64
+          name: Termux-Lab-Real-v0.8.2-arm64
           path: app/build/outputs/apk/debug/*arm64-v8a.apk
           if-no-files-found: error
 
