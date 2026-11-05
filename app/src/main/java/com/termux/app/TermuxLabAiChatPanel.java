@@ -304,14 +304,16 @@ public final class TermuxLabAiChatPanel {
     /** Card is a one-use approval capability, not merely a display of command text. */
     private final class ActionPlan {
         final String action;
+        final String approvedCommand;
         final TermuxLabActionLifecycle lifecycle = new TermuxLabActionLifecycle();
         final LinearLayout card;
         final TextView headline;
         final LinearLayout buttons;
         int exitCode = -1;
 
-        ActionPlan(String action, LinearLayout card, TextView headline, LinearLayout buttons) {
+        ActionPlan(String action, String approvedCommand, LinearLayout card, TextView headline, LinearLayout buttons) {
             this.action = action;
+            this.approvedCommand = approvedCommand;
             this.card = card;
             this.headline = headline;
             this.buttons = buttons;
@@ -387,7 +389,7 @@ public final class TermuxLabAiChatPanel {
         card.addView(text("Workspace: /root/projects/engineering-lab\n" + detail[2], 10, MUTED, false));
         LinearLayout actions = new LinearLayout(activity);
         actions.setPadding(0, dp(8), 0, 0);
-        ActionPlan plan = new ActionPlan(action, card, headline, actions);
+        ActionPlan plan = new ActionPlan(action, detail[1], card, headline, actions);
         actions.addView(button("TINJAU & JALANKAN", () -> confirmExecute(plan)), barButtonLp());
         actions.addView(button("BATAL", () -> {
             if (activePlan != plan || !plan.lifecycle.cancel()) return;
@@ -406,7 +408,7 @@ public final class TermuxLabAiChatPanel {
     private void confirmExecute(ActionPlan plan) {
         if (busy || activePlan != plan || !plan.lifecycle.beginReview()) return;
         String[] detail = actionDetails(plan.action);
-        if (detail == null) {
+        if (detail == null || !plan.approvedCommand.equals(detail[1])) {
             plan.lifecycle.cancel();
             refreshActionCard(plan);
             activePlan = null;
@@ -426,6 +428,7 @@ public final class TermuxLabAiChatPanel {
                     try {
                         req.put("mode", "execute");
                         req.put("action", plan.action);
+                        req.put("expected_command", plan.approvedCommand);
                     } catch (Exception error) {
                         statusText.setText("Gagal menyiapkan eksekusi: " + error.getMessage());
                         return;

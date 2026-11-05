@@ -232,7 +232,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         TextView title = text("Termux Lab // Cockpit", 14, TEXT, true);
         title.setSingleLine(true);
         titles.addView(title);
-        TextView sub = text("engineering-lab • v0.8.1", 10, MUTED, false);
+        TextView sub = text("engineering-lab • " + labVersionLabel(), 10, MUTED, false);
         sub.setSingleLine(true);
         titles.addView(sub);
 
@@ -815,7 +815,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         contentHost.addView(settings, blockLp());
 
         LinearLayout about = panel();
-        about.addView(text("TERMUX LAB v0.8.1", 16, TEXT, true));
+        about.addView(text("TERMUX LAB " + labVersionLabel(), 16, TEXT, true));
         about.addView(text("Mobile AI engineering cockpit: chat dan command planner dengan konfirmasi per-aksi, model CLI Codex/Claude, persistent sessions, Explorer, Git, dan Ops.", 12, MUTED, false));
         about.addView(text("Package: " + getPackageName(), 11, MUTED, false));
         contentHost.addView(about, blockLp());
@@ -1757,4 +1757,28 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
             this.run = run;
         }
     }
+
+    private String labVersionLabel() {
+        try {
+            String version = getPackageManager()
+                    .getPackageInfo(getPackageName(), 0)
+                    .versionName;
+
+            if (version == null) return "unknown";
+
+            java.util.regex.Matcher matcher =
+                    java.util.regex.Pattern
+                            .compile("lab\\.(\\d+\\.\\d+)")
+                            .matcher(version);
+
+            if (matcher.find()) {
+                return "v0." + matcher.group(1);
+            }
+
+            return version;
+        } catch (Exception error) {
+            return "unknown";
+        }
+    }
+
 }
