@@ -20,12 +20,22 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Verify AI approval lifecycle
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p "$RUNNER_TEMP/termux-lab-lifecycle"
+          javac -d "$RUNNER_TEMP/termux-lab-lifecycle" \
+            app/src/main/java/com/termux/app/TermuxLabActionLifecycle.java \
+            tests/termux-lab/TestTermuxLabActionLifecycle.java
+          java -cp "$RUNNER_TEMP/termux-lab-lifecycle" com.termux.app.TestTermuxLabActionLifecycle
+
       - name: Build Termux Lab arm64 APK
         shell: bash
         env:
           TERMUX_PACKAGE_VARIANT: apt-android-7
-          TERMUX_APP_VERSION_NAME: 0.118.0-lab.8.0
-          TERMUX_APK_VERSION_TAG: v0.118.0-lab.8.0-apt-android-7-debug
+          TERMUX_APP_VERSION_NAME: 0.118.0-lab.8.1
+          TERMUX_APK_VERSION_TAG: v0.118.0-lab.8.1-apt-android-7-debug
         run: |
           set -euxo pipefail
           chmod +x gradlew
@@ -36,7 +46,7 @@ jobs:
       - name: Upload arm64 APK
         uses: actions/upload-artifact@v6
         with:
-          name: Termux-Lab-Real-v0.8-arm64
+          name: Termux-Lab-Real-v0.8.1-arm64
           path: app/build/outputs/apk/debug/*arm64-v8a.apk
           if-no-files-found: error
 

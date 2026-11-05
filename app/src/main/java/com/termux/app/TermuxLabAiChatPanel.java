@@ -71,6 +71,9 @@ public final class TermuxLabAiChatPanel {
     private boolean busy;
     private long taskSerial;
     private volatile Process activeProcess;
+    // Exactly one plan may be approved. Old cards stay visible as read-only history.
+    private ActionPlan activePlan;
+
 
     public TermuxLabAiChatPanel(AppCompatActivity activity, Runnable scrollDown) {
         this.activity = activity;
@@ -92,6 +95,10 @@ public final class TermuxLabAiChatPanel {
 
     public void dispose() {
         taskSerial++;
+        if (activePlan != null && activePlan.lifecycle.cancel()) {
+            refreshActionCard(activePlan);
+            activePlan = null;
+        }
         cancelRunningProcess();
     }
 
@@ -172,6 +179,7 @@ public final class TermuxLabAiChatPanel {
     }
 
     private void setMode(String next) {
+        if (busy) return;
         mode = next;
         if (modeChatButton != null) modeChatButton.setBackground(round("chat".equals(mode) ? AMBER_DARK : PANEL_2, "chat".equals(mode) ? AMBER : BORDER, 1, 7));
         if (modePlanButton != null) modePlanButton.setBackground(round("plan".equals(mode) ? AMBER_DARK : PANEL_2, "plan".equals(mode) ? AMBER : BORDER, 1, 7));
@@ -257,12 +265,15 @@ public final class TermuxLabAiChatPanel {
             statusText.setText("Gagal menyiapkan permintaan: " + error.getMessage());
             return;
         }
+        // A new request invalidates any old unapproved plan. No stale card may be run.
+        supersedePendingPlan();
         promptInput.setText("");
         showBubble("user", message, true);
-        runBridge(req, "Memproses lewat " + ("codex".equals(backend) ? "Codex" : "Claude") + "…");
+        runBridge(req, "Memproses lewat " + ("codex".equals(backend) ? "Codex" : "Claude") + "…", null);
     }
 
     private void chooseTools() {
+        if (busy) { statusText.setText("Hentikan proses aktif sebelum memilih tool."); return; }
         String[] labels = {
                 "Git status (baca saja)", "Git diff (baca saja)", "Git log (baca saja)",
                 "Jalankan pytest (mengeksekusi kode proyek)",
@@ -290,14 +301,84 @@ public final class TermuxLabAiChatPanel {
         }
     }
 
+    /** Card is a one-use approval capability, not merely a display of command text. */
+    private final class ActionPlan {
+        final String action;
+        final TermuxLabActionLifecycle lifecycle = new TermuxLabActionLifecycle();
+        final LinearLayout card;
+        final TextView headline;
+        final LinearLayout buttons;
+        int exitCode = -1;
+
+        ActionPlan(String action, LinearLayout card, TextView headline, LinearLayout buttons) {
+            this.action = action;
+            this.card = card;
+            this.headline = headline;
+            this.buttons = buttons;
+        }
+    }
+
+    private void supersedePendingPlan() {
+        if (activePlan == null) return;
+        if (activePlan.lifecycle.supersede()) {
+            refreshActionCard(activePlan);
+            activePlan = null;
+        }
+    }
+
+    private void refreshActionCard(ActionPlan plan) {
+        String label;
+        int color;
+        switch (plan.lifecycle.state()) {
+            case PENDING:
+                label = "RENCANA EKSEKUSI • MENUNGGU PERSETUJUAN";
+                color = AMBER;
+                break;
+            case REVIEWING:
+                label = "RENCANA EKSEKUSI • KONFIRMASI TERBUKA";
+                color = AMBER;
+                break;
+            case EXECUTING:
+                label = "RENCANA EKSEKUSI • SEDANG DIJALANKAN";
+                color = AMBER;
+                break;
+            case SUCCEEDED:
+                label = "RENCANA EKSEKUSI • SELESAI (EXIT " + plan.exitCode + ")";
+                color = GREEN;
+                break;
+            case FAILED:
+                label = "RENCANA EKSEKUSI • GAGAL (EXIT " + plan.exitCode + ")";
+                color = RED;
+                break;
+            case CANCELLED:
+                label = "RENCANA EKSEKUSI • DIBATALKAN";
+                color = MUTED;
+                break;
+            default:
+                label = "RENCANA EKSEKUSI • DIGANTIKAN RENCANA BARU";
+                color = MUTED;
+                break;
+        }
+        plan.headline.setText(label);
+        plan.headline.setTextColor(color);
+        // Hide review + cancel controls for all non-pending states.
+        // This also blocks tapping a second confirmation during execution.
+        plan.buttons.setVisibility(plan.lifecycle.state() == TermuxLabActionLifecycle.State.PENDING
+                ? View.VISIBLE : View.GONE);
+    }
+
     private void showActionCard(String action, String summary) {
+        if (busy) return;
         String[] detail = actionDetails(action);
         if (detail == null) {
             showBubble("system", "Aksi ditolak: tidak termasuk allowlist.", false);
+            statusText.setText("Aksi tidak tersedia.");
             return;
         }
+        supersedePendingPlan();
         LinearLayout card = box();
-        card.addView(text("RENCANA EKSEKUSI • MENUNGGU PERSETUJUAN", 11, AMBER, true));
+        TextView headline = text("", 11, AMBER, true);
+        card.addView(headline);
         card.addView(text(summary, 12, TEXT, false));
         TextView command = text("$ " + detail[1], 12, GREEN, false);
         command.setTextIsSelectable(true);
@@ -306,34 +387,62 @@ public final class TermuxLabAiChatPanel {
         card.addView(text("Workspace: /root/projects/engineering-lab\n" + detail[2], 10, MUTED, false));
         LinearLayout actions = new LinearLayout(activity);
         actions.setPadding(0, dp(8), 0, 0);
-        actions.addView(button("TINJAU & JALANKAN", () -> confirmExecute(action)), barButtonLp());
+        ActionPlan plan = new ActionPlan(action, card, headline, actions);
+        actions.addView(button("TINJAU & JALANKAN", () -> confirmExecute(plan)), barButtonLp());
         actions.addView(button("BATAL", () -> {
-            messagesHost.removeView(card);
+            if (activePlan != plan || !plan.lifecycle.cancel()) return;
+            refreshActionCard(plan);
+            activePlan = null;
             statusText.setText("Rencana dibatalkan. Tidak ada perintah dijalankan.");
         }), barButtonLp());
         card.addView(actions);
+        activePlan = plan;
+        refreshActionCard(plan);
         messagesHost.addView(card, blockLp());
+        statusText.setText("Rencana siap. Tinjau lalu setujui, atau batalkan.");
         scrollDown.run();
     }
 
-    private void confirmExecute(String action) {
-        String[] detail = actionDetails(action);
-        if (detail == null || busy) return;
+    private void confirmExecute(ActionPlan plan) {
+        if (busy || activePlan != plan || !plan.lifecycle.beginReview()) return;
+        String[] detail = actionDetails(plan.action);
+        if (detail == null) {
+            plan.lifecycle.cancel();
+            refreshActionCard(plan);
+            activePlan = null;
+            return;
+        }
+        refreshActionCard(plan);
         new AlertDialog.Builder(activity)
                 .setTitle("Konfirmasi eksekusi: " + detail[0])
                 .setMessage("Jalankan di Ubuntu, folder engineering-lab?\n\n$ " + detail[1] +
                         "\n\n" + detail[2] + "\n\nHanya tindakan ini yang diizinkan.")
                 .setNegativeButton("BATAL", null)
                 .setPositiveButton("SETUJU & JALANKAN", (dialog, which) -> {
+                    // Validation and transition happen atomically on the Android UI thread.
+                    if (busy || activePlan != plan ||
+                            plan.lifecycle.state() != TermuxLabActionLifecycle.State.REVIEWING) return;
                     JSONObject req = new JSONObject();
-                    try { req.put("mode", "execute"); req.put("action", action); }
-                    catch (Exception e) { statusText.setText(e.getMessage()); return; }
+                    try {
+                        req.put("mode", "execute");
+                        req.put("action", plan.action);
+                    } catch (Exception error) {
+                        statusText.setText("Gagal menyiapkan eksekusi: " + error.getMessage());
+                        return;
+                    }
+                    if (!plan.lifecycle.approve()) return;
+                    refreshActionCard(plan);
                     showBubble("system", "Disetujui: $ " + detail[1], false);
-                    runBridge(req, "Menjalankan " + detail[0] + "…");
-                }).show();
+                    runBridge(req, "Menjalankan " + detail[0] + "…", plan);
+                })
+                .setOnDismissListener(dialog -> {
+                    // Covers BATAL, back button, or tapping outside the dialog.
+                    if (plan.lifecycle.declineReview()) refreshActionCard(plan);
+                })
+                .show();
     }
 
-    private void runBridge(JSONObject request, String label) {
+    private void runBridge(JSONObject request, String label, ActionPlan executionPlan) {
         if (busy) return;
         final long serial = ++taskSerial;
         setBusy(true);
@@ -387,12 +496,14 @@ public final class TermuxLabAiChatPanel {
                 if (serial != taskSerial) return;
                 setBusy(false);
                 if (payload == null) {
+                    failExecutionPlan(executionPlan, -1);
                     showBubble("system", "Backend tidak memberikan hasil. " + diagnostic, false);
                     statusText.setText("Gagal menjalankan bridge.");
                     return;
                 }
-                try { handleResponse(request, new JSONObject(payload)); }
+                try { handleResponse(request, new JSONObject(payload), executionPlan); }
                 catch (Exception e) {
+                    failExecutionPlan(executionPlan, -1);
                     showBubble("system", "Respons backend tidak valid: " + e.getMessage(), false);
                     statusText.setText("Format respons tidak valid.");
                 }
@@ -400,8 +511,37 @@ public final class TermuxLabAiChatPanel {
         }, "termux-lab-ai-bridge").start();
     }
 
-    private void handleResponse(JSONObject request, JSONObject result) {
+    private void finishExecutionPlan(ActionPlan plan, int exitCode, boolean success) {
+        if (plan == null) return;
+        plan.exitCode = exitCode;
+        if (plan.lifecycle.complete(success)) refreshActionCard(plan);
+        if (activePlan == plan) activePlan = null;
+    }
+
+    private void failExecutionPlan(ActionPlan plan, int exitCode) {
+        finishExecutionPlan(plan, exitCode, false);
+    }
+
+    private void handleResponse(JSONObject request, JSONObject result, ActionPlan executionPlan) {
         String reqMode = request.optString("mode", "chat");
+        // For execute, even a nonzero exit must close the single-use approval card.
+        // The old implementation returned early on !ok, leaving a reusable pending card.
+        if ("execute".equals(reqMode)) {
+            int exit = result.has("exit") ? result.optInt("exit", -1) : -1;
+            boolean success = result.optBoolean("ok", false) && exit == 0;
+            finishExecutionPlan(executionPlan, exit, success);
+            String title = result.optString("title", "Perintah");
+            String output = result.optString("output", "");
+            String error = result.optString("error", "");
+            StringBuilder report = new StringBuilder(success ? "SELESAI" : "GAGAL")
+                    .append(" • ").append(title).append(" • exit ").append(exit);
+            if (!output.isEmpty()) report.append("\n\n").append(output);
+            if (!error.isEmpty()) report.append("\n\nERROR: ").append(error);
+            showBubble("system", report.toString(), false);
+            statusText.setText(success ? "Aksi selesai. Periksa output di atas."
+                    : "Aksi gagal. Periksa output di atas. Persetujuan lama tidak berlaku.");
+            return;
+        }
         if (!result.optBoolean("ok", false)) {
             String error = result.optString("error", "Unknown error");
             showBubble("system", "GAGAL: " + error, false);
@@ -417,16 +557,16 @@ public final class TermuxLabAiChatPanel {
             String action = result.optString("action", "none");
             if (!"none".equals(action)) showActionCard(action, message);
             else statusText.setText("Tidak ada tindakan allowlist yang sesuai.");
-        } else if ("execute".equals(reqMode)) {
-            showBubble("system", "SELESAI • " + result.optString("title") + " • exit " + result.optInt("exit")
-                    + "\n\n" + result.optString("output", "(tanpa output)"), false);
-            statusText.setText("Aksi selesai. Periksa output di atas.");
         }
     }
 
     private void cancelCurrent() {
         if (!busy) return;
         ++taskSerial;
+        if (activePlan != null && activePlan.lifecycle.cancel()) {
+            refreshActionCard(activePlan);
+            activePlan = null;
+        }
         cancelRunningProcess();
         setBusy(false);
         showBubble("system", "Permintaan dibatalkan oleh pengguna.", false);
@@ -452,17 +592,26 @@ public final class TermuxLabAiChatPanel {
         if (cancelButton != null) {
             cancelButton.setVisibility(isBusy ? View.VISIBLE : View.GONE);
         }
+        if (modeChatButton != null) modeChatButton.setEnabled(!isBusy);
+        if (modePlanButton != null) modePlanButton.setEnabled(!isBusy);
     }
 
     private void askClear() {
+        if (busy) { statusText.setText("Hentikan proses aktif sebelum menghapus chat."); return; }
         new AlertDialog.Builder(activity)
                 .setTitle("Hapus percakapan?")
                 .setMessage("Riwayat percakapan panel ini akan dikosongkan. Tidak menghapus proyek atau akun AI.")
                 .setNegativeButton("BATAL", null)
                 .setPositiveButton("HAPUS", (dialog, which) -> {
+                    if (busy) return;
+                    if (activePlan != null && activePlan.lifecycle.cancel()) {
+                        refreshActionCard(activePlan);
+                        activePlan = null;
+                    }
                     messages.clear();
                     messagesHost.removeAllViews();
                     showBubble("assistant", "Percakapan baru. Siap menerima instruksi.", false);
+                    statusText.setText("Percakapan dihapus. Tidak ada rencana aktif.");
                 }).show();
     }
 

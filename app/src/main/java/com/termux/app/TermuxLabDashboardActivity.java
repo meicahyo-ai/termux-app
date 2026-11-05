@@ -232,7 +232,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         TextView title = text("Termux Lab // Cockpit", 14, TEXT, true);
         title.setSingleLine(true);
         titles.addView(title);
-        TextView sub = text("engineering-lab • v0.8.0", 10, MUTED, false);
+        TextView sub = text("engineering-lab • v0.8.1", 10, MUTED, false);
         sub.setSingleLine(true);
         titles.addView(sub);
 
@@ -815,7 +815,7 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         contentHost.addView(settings, blockLp());
 
         LinearLayout about = panel();
-        about.addView(text("TERMUX LAB v0.8.0", 16, TEXT, true));
+        about.addView(text("TERMUX LAB v0.8.1", 16, TEXT, true));
         about.addView(text("Mobile AI engineering cockpit: chat dan command planner dengan konfirmasi per-aksi, model CLI Codex/Claude, persistent sessions, Explorer, Git, dan Ops.", 12, MUTED, false));
         about.addView(text("Package: " + getPackageName(), 11, MUTED, false));
         contentHost.addView(about, blockLp());
