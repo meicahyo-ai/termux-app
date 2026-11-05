@@ -294,7 +294,7 @@ public final class TermuxLabAiChatPanel {
             case "git_status": return new String[]{"Git status", "git status --short --branch", "Membaca status Git."};
             case "git_diff": return new String[]{"Git diff", "git diff --stat && git diff --no-ext-diff -- .", "Membaca perubahan Git."};
             case "git_log": return new String[]{"Git log", "git log -5 --oneline", "Membaca riwayat commit."};
-            case "pytest": return new String[]{"Pytest", "python3 -m pytest -q", "Tes mengeksekusi kode proyek dan bisa membuat file."};
+            case "pytest": return new String[]{"Pytest", "if [ -x .venv/bin/python ]; then .venv/bin/python -m pytest -q; elif [ -x venv/bin/python ]; then venv/bin/python -m pytest -q; else python3 -m pytest -q; fi", "Tes mengeksekusi kode proyek dan bisa membuat file."};
             case "ocr_review": return new String[]{"OCR review", "ocr review", "Dapat mengirim kode ke provider AI dan menggunakan kuota/API berbayar."};
             case "ocr_scan": return new String[]{"OCR scan", "ocr scan .", "Dapat memindai seluruh proyek, mengirim kode, dan menggunakan kuota/API berbayar."};
             default: return null;
