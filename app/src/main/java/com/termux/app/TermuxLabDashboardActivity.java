@@ -397,6 +397,10 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
             new Action("CLAUDE", () -> launchEmbedded("Claude", ubuntuRepoInteractive("exec claude"))),
             new Action("REVIEW", () -> launchEmbedded("Codex Review", ubuntuRepoInteractive("codex review --uncommitted")))
         ));
+        hero.addView(actionBar(
+            new Action("KNOWLEDGE", () -> startActivity(new Intent(this, TermuxLabKnowledgeActivity.class))),
+            new Action("PLUGINS", () -> startActivity(new Intent(this, TermuxLabExtensionsActivity.class)))
+        ));
         contentHost.addView(hero, blockLp());
 
         LinearLayout sessions = panel();
@@ -812,6 +816,10 @@ public final class TermuxLabDashboardActivity extends AppCompatActivity {
         settings.addView(settingRow("Overlay permission", "Hanya dibutuhkan untuk sesi fullscreen/persistent. Terminal embedded tidak membutuhkannya.", this::openOverlaySettings));
         settings.addView(settingRow("termux.properties", "Edit konfigurasi terminal", () -> runInTerminal("termux.properties", "mkdir -p ~/.termux; touch ~/.termux/termux.properties; exec nvim ~/.termux/termux.properties")));
         settings.addView(settingRow("Source repository", "meicahyo-ai/termux-app", () -> openUri("https://github.com/meicahyo-ai/termux-app")));
+        settings.addView(settingRow("Knowledge Vault", "Catatan Markdown mandiri milik Termux Lab",
+            () -> startActivity(new Intent(this, TermuxLabKnowledgeActivity.class))));
+        settings.addView(settingRow("Extension Manager", "Pasang plugin template Markdown dari ZIP lokal",
+            () -> startActivity(new Intent(this, TermuxLabExtensionsActivity.class))));
         contentHost.addView(settings, blockLp());
 
         LinearLayout about = panel();

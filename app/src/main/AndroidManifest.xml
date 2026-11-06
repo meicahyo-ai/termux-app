@@ -68,6 +68,14 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".app.TermuxLabKnowledgeActivity"
+            android:exported="false"
+            android:label="Termux Lab Knowledge"
+            android:theme="@style/Theme.TermuxActivity.DayNight.NoActionBar" />
+        <activity android:name=".app.TermuxLabExtensionsActivity"
+            android:exported="false"
+            android:label="Termux Lab Extensions"
+            android:theme="@style/Theme.TermuxActivity.DayNight.NoActionBar" />
         <activity
             android:name=".app.TermuxActivity"
             android:exported="true"
